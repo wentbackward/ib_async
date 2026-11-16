@@ -280,12 +280,6 @@ _TICK_BY_TICK_LAST_TYPES: Final[frozenset[int]] = frozenset({1, 2})
 _PEG_BENCH_ORDER_TYPES: Final[frozenset[str]] = frozenset({"PEG BENCH", "PEGBENCH"})
 
 
-def _noopHandler(fields: list[str]) -> None:
-    """Returned by Decoder.wrap() when the wrapper has no method for a msgId,
-    so the dispatch table never contains None and hot-path lookup can call
-    unconditionally."""
-
-
 @dataclasses.dataclass(frozen=True, slots=True)
 class _ProtoMessage:
     """A protobuf message the decoder reads: its message class's name
@@ -563,19 +557,22 @@ class Decoder(Generic[EmptyT]):
         with the in-order message fields as parameters, skipping over
         the first ``skip`` fields, and parsed according to the ``types`` list.
 
-        The wrapper method and the per-type converter list are resolved once
-        at construction time so per-dispatch overhead is one zip + one call
-        per field, not a four-way ``is``-comparison chain plus a getattr.
+        The per-type converter list is resolved once at construction time,
+        so per-dispatch overhead is one zip + one call per field, not a
+        four-way ``is``-comparison chain. The wrapper method is looked up
+        on each message, as the protobuf handlers do, so a method replaced
+        on the wrapper instance after the client is built is still called.
+        A wrapper without the method skips the message.
         """
-        method = getattr(self.wrapper, methodName, None)
-        if method is None:
-            return _noopHandler
-
+        wrapper = self.wrapper
         converters = [_CONV[t] for t in types]
         logger = self.logger
         tally = self.tally
 
         def handler(fields):
+            method = getattr(wrapper, methodName, None)
+            if method is None:
+                return
             try:
                 # Newer servers may append fields this decoder does not read.
                 args = [
