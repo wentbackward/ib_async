@@ -1,5 +1,6 @@
-ib_async/__pycache__
-ib_async/_pb/
+__pycache__/
+# marketlab branch: ib_async/_pb/ is committed so a git install works.
+# Upstream ignores it; see MARKETLAB.md.
 dist
 build
 .uv-cache/
